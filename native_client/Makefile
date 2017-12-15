@@ -20,6 +20,11 @@ clean: bindings-clean
 
 deepspeech: client.cc
 	$(CXX) -o deepspeech $(CFLAGS) $(SOX_CFLAGS) client.cc $(LDFLAGS) $(SOX_LDFLAGS)
+ifeq ($(OS),Darwin)
+	install_name_tool -change $$TASKCLUSTER_TASK_DIR/homebrew/opt/sox/lib/libsox.3.dylib @rpath/libsox.3.dylib deepspeech
+	install_name_tool -change bazel-out/local-opt/bin/native_client/libdeepspeech.so @rpath/libdeepspeech.so deepspeech
+	install_name_tool -change bazel-out/local-opt/bin/native_client/libdeepspeech_utils.so @rpath/libdeepspeech_utils.so deepspeech
+endif
 
 bindings-clean:
 	rm -rf dist temp_build deepspeech.egg-info MANIFEST.in temp_lib
@@ -49,6 +54,7 @@ debug: deepspeech
 install: deepspeech
 	install -d ${PREFIX}/lib
 	install -m 0644 ${TFDIR}/bazel-bin/tensorflow/libtensorflow_cc.so ${PREFIX}/lib/
+	install -m 0644 ${TFDIR}/bazel-bin/tensorflow/libtensorflow_framework.so ${PREFIX}/lib/
 	install -m 0644 ${TFDIR}/bazel-bin/native_client/libdeepspeech.so ${PREFIX}/lib/
 	install -m 0644 ${TFDIR}/bazel-bin/native_client/libdeepspeech_utils.so ${PREFIX}/lib/
 	install -d ${PREFIX}/bin
@@ -60,4 +66,5 @@ uninstall:
 	rm -f ${PREFIX}/lib/libdeepspeech_utils.so
 	rm -f ${PREFIX}/lib/libdeepspeech.so
 	rm -f ${PREFIX}/lib/libtensorflow_cc.so
+	rm -f ${PREFIX}/lib/libtensorflow_framework.so
 	rmdir --ignore-fail-on-non-empty ${PREFIX}/lib

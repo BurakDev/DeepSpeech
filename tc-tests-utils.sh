@@ -10,9 +10,19 @@ fi;
 if [ "${OS}" = "Darwin" ]; then
     export DS_ROOT_TASK=${TASKCLUSTER_TASK_DIR}
     export SWIG_LIB="$(find ${DS_ROOT_TASK}/homebrew/Cellar/swig/ -type f -name "swig.swg" | xargs dirname)"
+
+    # It seems chaining |export DYLD_LIBRARY_PATH=...| does not work, maybe
+    # because of SIP? Who knows ...
+    if [ ! -z "${EXTRA_ENV}" ]; then
+        eval "export ${EXTRA_ENV}"
+    fi;
 fi;
 
 export TASKCLUSTER_ARTIFACTS=${TASKCLUSTER_ARTIFACTS:-/tmp/artifacts}
+export TASKCLUSTER_TMP_DIR=${TASKCLUSTER_TMP_DIR:-/tmp}
+
+mkdir -p ${TASKCLUSTER_TMP_DIR} || true
+
 export DS_TFDIR=${DS_ROOT_TASK}/DeepSpeech/tf
 export DS_DSDIR=${DS_ROOT_TASK}/DeepSpeech/ds
 
@@ -145,11 +155,11 @@ download_ctc_kenlm()
 
 download_data()
 {
-  wget ${model_source} -O /tmp/${model_name}
-  wget https://catalog.ldc.upenn.edu/desc/addenda/LDC93S1.wav -O /tmp/LDC93S1.wav
-  cp ~/DeepSpeech/ds/data/alphabet.txt /tmp/alphabet.txt
-  cp ~/DeepSpeech/ds/data/lm/lm.binary /tmp/lm.binary
-  cp ~/DeepSpeech/ds/data/lm/trie /tmp/trie
+  wget ${model_source} -O ${TASKCLUSTER_TMP_DIR}/${model_name}
+  wget https://catalog.ldc.upenn.edu/desc/addenda/LDC93S1.wav -O ${TASKCLUSTER_TMP_DIR}/LDC93S1.wav
+  cp ${DS_ROOT_TASK}/DeepSpeech/ds/data/alphabet.txt ${TASKCLUSTER_TMP_DIR}/alphabet.txt
+  cp ${DS_ROOT_TASK}/DeepSpeech/ds/data/lm/lm.binary ${TASKCLUSTER_TMP_DIR}/lm.binary
+  cp ${DS_ROOT_TASK}/DeepSpeech/ds/data/lm/trie ${TASKCLUSTER_TMP_DIR}/trie
 }
 
 download_material()
@@ -165,7 +175,7 @@ download_material()
 
   download_data
 
-  ls -hal /tmp/${model_name} /tmp/LDC93S1.wav /tmp/alphabet.txt
+  ls -hal ${TASKCLUSTER_TMP_DIR}/${model_name} ${TASKCLUSTER_TMP_DIR}/LDC93S1.wav ${TASKCLUSTER_TMP_DIR}/alphabet.txt
 }
 
 install_pyenv()
@@ -213,12 +223,6 @@ do_get_model_parameters()
   wget "${SUMMARIZE_GRAPH_BINARY}" -O "/tmp/summarize_graph"
   wget "${LIBTENSORFLOW_FRAMEWORK}" -O "/tmp/libtensorflow_framework.so"
 
-  if [ "${OS}" = "Darwin" ]; then
-    for binary in summarize_graph libtensorflow_framework.so;
-    do
-      mv  /tmp/${binary} /tmp/${binary}.gz && gunzip /tmp/${binary}.gz
-    done;
-  fi;
   chmod +x /tmp/summarize_graph
 
   if [ ! -f "${model_file}" ]; then
@@ -358,7 +362,7 @@ package_native_client()
   if [ -f "${tensorflow_dir}/bazel-bin/native_client/libdeepspeech_model.so" ]; then
     tar -cf - \
       -C ${tensorflow_dir}/bazel-bin/tensorflow/ libtensorflow_cc.so \
-      -c ${tensorflow_dir}/bazel-bin/tensorflow/ libtensorflow_framework.so \
+      -C ${tensorflow_dir}/bazel-bin/tensorflow/ libtensorflow_framework.so \
       -C ${tensorflow_dir}/bazel-bin/tensorflow/compiler/aot/ libruntime.so \
       -C ${tensorflow_dir}/bazel-bin/tensorflow/compiler/xla/service/cpu/ libruntime_matmul.so \
       -C ${tensorflow_dir}/bazel-bin/tensorflow/compiler/xla/service/cpu/ libruntime_matvec.so \
@@ -376,7 +380,7 @@ package_native_client()
   else
     tar -cf - \
       -C ${tensorflow_dir}/bazel-bin/tensorflow/ libtensorflow_cc.so \
-      -c ${tensorflow_dir}/bazel-bin/tensorflow/ libtensorflow_framework.so \
+      -C ${tensorflow_dir}/bazel-bin/tensorflow/ libtensorflow_framework.so \
       -C ${tensorflow_dir}/bazel-bin/native_client/ generate_trie \
       -C ${tensorflow_dir}/bazel-bin/native_client/ libctc_decoder_with_kenlm.so \
       -C ${tensorflow_dir}/bazel-bin/native_client/ libdeepspeech.so \

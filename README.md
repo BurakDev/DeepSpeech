@@ -3,24 +3,26 @@
 [![Documentation Status](https://readthedocs.org/projects/deepspeech/badge/?version=master)](http://deepspeech.readthedocs.io/?badge=master)
 [![Task Status](https://github.taskcluster.net/v1/repository/mozilla/DeepSpeech/master/badge.svg)](https://github.taskcluster.net/v1/repository/mozilla/DeepSpeech/master/latest)
 
-Project DeepSpeech is an open source Speech-To-Text engine. It uses a model trained by machine learning techniques, based on [Baidu's Deep Speech research paper](https://arxiv.org/abs/1412.5567). Project DeepSpeech uses Google's [TensorFlow](https://www.tensorflow.org/) project to make the implementation easier.
+Project DeepSpeech is an open source Speech-To-Text engine, using a model trained by machine learning techniques, based on [Baidu's Deep Speech research paper](https://arxiv.org/abs/1412.5567). Project DeepSpeech uses Google's [TensorFlow](https://www.tensorflow.org/) project to make the implementation easier.
 
 ![Usage](images/usage.gif)
 
 Pre-built binaries that can be used for performing inference with a trained model can be installed with `pip`. Proper setup using virtual environment is recommended and you can find that documented [below](#using-the-python-package).
 
-Once installed you can then use the `deepspeech` binary to do speech-to-text on an audio file (currently only WAVE files with 16-bit, 16 kHz, mono are supported in the Python client):
+A pre-trained English model is available for use, and can be downloaded using [the instructions below](#getting-the-pre-trained-model).
+
+Once everything is installed you can then use the `deepspeech` binary to do speech-to-text on short, approximately 5 second, audio files (currently only WAVE files with 16-bit, 16 kHz, mono are supported in the Python client):
 
 ```bash
 pip install deepspeech
-deepspeech output_model.pb my_audio_file.wav alphabet.txt
+deepspeech models/output_graph.pb my_audio_file.wav models/alphabet.txt
 ```
 
 Alternatively, quicker inference (The realtime factor on a GeForce GTX 1070 is about 0.44.) can be performed using a supported NVIDIA GPU on Linux. (See the release notes to find which GPU's are supported.) This is done by instead installing the GPU specific package:
 
 ```bash
 pip install deepspeech-gpu
-deepspeech output_model.pb my_audio_file.wav alphabet.txt
+deepspeech models/output_graph.pb my_audio_file.wav models/alphabet.txt
 ```
 
 See the output of `deepspeech -h` for more information on the use of `deepspeech`. (If you experience problems running `deepspeech`, please check [required runtime dependencies](native_client/README.md#required-dependencies)).
@@ -29,6 +31,7 @@ See the output of `deepspeech -h` for more information on the use of `deepspeech
 
 - [Prerequisites](#prerequisites)
 - [Getting the code](#getting-the-code)
+- [Getting the pre-trained model](#getting-the-pre-trained-model)
 - [Using the model](#using-the-model)
   - [Using the Python package](#using-the-python-package)
   - [Using the command line client](#using-the-command-line-client)
@@ -36,7 +39,9 @@ See the output of `deepspeech -h` for more information on the use of `deepspeech
   - [Installing bindings from source](#installing-bindings-from-source)
   - [Third party bindings](#third-party-bindings)
 - [Training](#training)
+  - [Installing prerequisites for training](#installing-prerequisites-for-training)
   - [Recommendations](#recommendations)
+  - [Common Voice training data](#common-voice-training-data)
   - [Training a model](#training-a-model)
   - [Checkpointing](#checkpointing)
   - [Exporting a model for inference](#exporting-a-model-for-inference)
@@ -51,21 +56,34 @@ See the output of `deepspeech -h` for more information on the use of `deepspeech
 
 ## Getting the code
 
-Manually install [Git Large File Storage](https://git-lfs.github.com/), then clone the repository normally:
+Install [Git Large File Storage](https://git-lfs.github.com/), either manually or through a package like `git-lfs` if available on your system. Then clone the DeepSpeech repository normally:
 
 ```bash
 git clone https://github.com/mozilla/DeepSpeech
 ```
 
+## Getting the pre-trained model
+
+If you want to use the pre-trained English model for performing speech-to-text, you can download it (along with other important inference material) from the [DeepSpeech releases page](https://github.com/mozilla/DeepSpeech/releases). Alternatively, you can run the following command to download and unzip the files in your current directory:
+
+```bash
+wget -O - https://github.com/mozilla/DeepSpeech/releases/download/v0.1.0/deepspeech-0.1.0-models.tar.gz | tar xvfz -
+```
+
 ## Using the model
 
-If all you want to do is use an already trained model for doing speech-to-text, you can grab one of our pre-built binaries. You can use a command-line binary, a Python package, or a Node.JS package.
+There are three ways to use DeepSpeech inference:
+
+- [The Python package](#using-the-python-package)
+- [The command-line client](#using-the-command-line-client)
+- [The Node.JS package](#using-the-nodejs-package)
+
 
 ### Using the Python package
 
 Pre-built binaries that can be used for performing inference with a trained model can be installed with `pip`. You can then use the `deepspeech` binary to do speech-to-text on an audio file:
 
-For the Python bindings, it is highly recommended that you perform the installation within a virtual environment. You can find more information about those in [this documentation](http://docs.python-guide.org/en/latest/dev/virtualenvs/).
+For the Python bindings, it is highly recommended that you perform the installation within a Python 2.7 virtual environment. You can find more information about those in [this documentation](http://docs.python-guide.org/en/latest/dev/virtualenvs/).
 We will continue under the assumption that you already have your system properly setup to create new virtual environments.
 
 #### Create a DeepSpeech virtual environment
@@ -112,9 +130,13 @@ $ pip install --upgrade deepspeech-gpu
 
 In both cases, it should take care of installing all the required dependencies. Once it is done, you should be able to call the sample binary using `deepspeech` on your command-line.
 
+Note: the following command assumes you [downloaded the pre-trained model](#getting-the-pre-trained-model).
+
 ```bash
-deepspeech output_model.pb my_audio_file.wav alphabet.txt lm.binary trie
+deepspeech models/output_graph.pb my_audio_file.wav models/alphabet.txt models/lm.binary models/trie
 ```
+
+The last two arguments are optional, and represent a language model.
 
 See [client.py](native_client/python/client.py) for an example of how to use the package programatically.
 
@@ -134,9 +156,12 @@ python util/taskcluster.py --arch osx --target .
 
 This will download `native_client.tar.xz` which includes the deepspeech binary and associated libraries, and extract it into the current folder. `taskcluster.py` will download binaries for Linux/x86_64 by default, but you can override that behavior with the `--arch` parameter. See the help info with `python util/taskcluster.py -h` for more details.
 
+Note: the following command assumes you [downloaded the pre-trained model](#getting-the-pre-trained-model).
+
 ```bash
-./deepspeech model.pb audio_input.wav alphabet.txt lm.binary trie
+./deepspeech models/output_graph.pb audio_input.wav models/alphabet.txt models/lm.binary models/trie
 ```
+
 
 See the help output with `./deepspeech -h` and the [native client README](native_client/README.md) for more details.
 
@@ -164,7 +189,9 @@ If pre-built binaries aren't available for your system, you'll need to install t
 
 In addition to the bindings above, third party developers have started to provide bindings to other languages:
 
+* [Asticode](https://github.com/asticode) provides [Golang](https://golang.org) bindings in its [go-astideepspeech](https://github.com/asticode/go-astideepspeech) repo.
 * [RustAudio](https://github.com/RustAudio) provide a [Rust](https://www.rust-lang.org) binding, the installation and use of which is described in their [deepspeech-rs](https://github.com/RustAudio/deepspeech-rs) repo.
+* [stes](https://github.com/stes) provides preliminary [PKGBUILDs](https://wiki.archlinux.org/index.php/PKGBUILD) to install the client and python bindings on [Arch Linux](https://www.archlinux.org/) in the [arch-deepspeech](https://github.com/stes/arch-deepspeech) repo.
 
 ## Training
 
